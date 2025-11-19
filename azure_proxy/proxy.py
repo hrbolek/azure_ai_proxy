@@ -9,6 +9,7 @@ import uvicorn
 import httpx
 from fastapi import FastAPI, Request, Response, HTTPException, Cookie, Header, Depends
 from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from sqlalchemy import select
 
@@ -202,6 +203,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Azure OpenAI Reverse Proxy",
     lifespan=lifespan
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],          # allow every origin
+    allow_credentials=True,
+    allow_methods=["*"],          # permit all verbs (POST, OPTIONS, etc.)
+    allow_headers=["*"],          # accept any request headers
 )
 
 async def require_auth(request: Request):
@@ -712,6 +721,7 @@ async def list_models_openai(
 # ---------- OpenAI-compatible: /v1/chat/completions ----------
 @app.post("/v1/chat/completions")
 @app.post("/chat/completions")
+
 async def openai_v1_chat_completions(
     request: Request,
     session: Any = Depends(get_session),

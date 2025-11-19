@@ -302,3 +302,21 @@ docker logs azure-proxy | grep KV
 ```bash
 docker run -d  -p 8880:8000 --name local_azureaiproxy --env-file environment.secret.txt local_azureaiproxy:latest
 ```
+
+###  Deploy to Azure
+
+Build locally
+From repo root: docker build -t azure-ai-proxy:latest .
+Test: docker run -p 8000:8000 azure-ai-proxy:latest
+Push to Azure Container Registry (ACR)
+az login
+Create registry (once): az acr create -n acrunob -g rg-unob-containers --sku Basic
+az acr login -n acrunob
+Tag & push:
+
+docker tag azure-ai-proxy:latest acrunob.azurecr.io/azure-ai-proxy:latest
+docker push acrunob.azurecr.io/azure-ai-proxy:latest
+
+az containerapp env create -n dev  -g rg-unob-containers  --location polandcentral
+
+az containerapp create -n azure-ai-proxy -g rg-unob-containers --environment dev --image acrunob.azurecr.io/azure-ai-proxy:latest --target-port 8000 --ingress external --registry-server acrunob.azurecr.io --query properties.configuration.ingress.fqdn --registry-server acrunob.azurecr.io --registry-identity system --identity system

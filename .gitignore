@@ -27,3 +27,5 @@
 
 **/.nicegui
 **/proxy.db
+openwebui/.env.openwebui
+openwebui/.env.openwebui.ce
