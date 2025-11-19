@@ -1,0 +1,158 @@
+[
+    {
+        "api_keys": [
+            {
+                "id": "3b425b04-8f9a-497b-82ef-680f8e466262",
+                "user_id": "e6a82fa7-c882-4bed-8718-d4eb00fb95aa",
+                "prefix": "UcfgLY3h",
+                "key_hash": "60e4547cd16e3e130e8b59404f540973a04916fd2b5b701816a72f33a0617f59",
+                "name": "somename",
+                "is_active": true,
+                "created_at": "2025-11-18 20:31:34.638745",
+                "expires_at": "2026-02-16 20:31:34.638621",
+                "rate_limit_per_minute": 1,
+                "last_used_at": null,
+                "_chunk": 0
+            },
+            {
+                "id": "963583da-3be8-427e-b789-60d5123c747b",
+                "user_id": "e6a82fa7-c882-4bed-8718-d4eb00fb95aa",
+                "prefix": "IDQBiqZg",
+                "key_hash": "ba12443aa9807f9937ecc8ea5ee9c129d52476c8d82f578957626ecb263b3292",
+                "name": "other",
+                "is_active": true,
+                "created_at": "2025-11-18 20:35:35.032466",
+                "expires_at": "2026-02-16 20:35:35.032361",
+                "rate_limit_per_minute": 1,
+                "last_used_at": "2025-11-18 22:14:28.766576",
+                "_chunk": 0
+            },
+            {
+                "id": "e42c4a34-e23f-4a8e-91a3-f8d72b20db53",
+                "user_id": "e6a82fa7-c882-4bed-8718-d4eb00fb95aa",
+                "prefix": "Rxy8CTJJ",
+                "key_hash": "8bdcba39d41772af9c4c26662242ed5810340cf1cfa9ff3dc5710b19c4c7a7f1",
+                "name": "novy",
+                "is_active": true,
+                "created_at": "2025-11-18 21:10:09.900904",
+                "expires_at": "2026-02-16 21:10:09.900793",
+                "rate_limit_per_minute": 1,
+                "last_used_at": null,
+                "_chunk": 0
+            }
+        ]
+    },
+    {
+        "users": [
+            {
+                "id": "e6a82fa7-c882-4bed-8718-d4eb00fb95aa",
+                "created_at": "2025-11-18 20:31:21.948507",
+                "oid": "a1ddf4e0-445b-47a6-8b6f-188901565262",
+                "email": "alexandr.stefek@unob.cz",
+                "display_name": "Alexandr Štefek",
+                "is_admin": false,
+                "_chunk": 0
+            }
+        ]
+    },
+    {
+        "usage": [
+            {
+                "id": "a2e46f60b77141848cf24182b1af4d3c",
+                "api_key_id": "963583da-3be8-427e-b789-60d5123c747b",
+                "ts": "2025-11-18 20:40:23.611300",
+                "stream": false,
+                "route": "chat_completions",
+                "deployment": "summarization-deployment",
+                "status": 200,
+                "prompt_tokens": 19,
+                "completion_tokens": 20,
+                "total_tokens": 39,
+                "stream_bytes": null,
+                "cost_usd": null,
+                "meta_json": null,
+                "_chunk": 0
+            },
+            {
+                "id": "dfaf6a7f478148c29b4842203b6ca958",
+                "api_key_id": "963583da-3be8-427e-b789-60d5123c747b",
+                "ts": "2025-11-18 20:48:09.096951",
+                "stream": false,
+                "route": "chat_completions",
+                "deployment": "summarization-deployment",
+                "status": 200,
+                "prompt_tokens": 19,
+                "completion_tokens": 17,
+                "total_tokens": 36,
+                "stream_bytes": null,
+                "cost_usd": null,
+                "meta_json": null,
+                "_chunk": 0
+            },
+            {
+                "id": "c8fb246d534f4ddea617be7062709a6e",
+                "api_key_id": "963583da-3be8-427e-b789-60d5123c747b",
+                "ts": "2025-11-18 20:51:18.258286",
+                "stream": false,
+                "route": "chat_completions",
+                "deployment": "summarization-deployment",
+                "status": 200,
+                "prompt_tokens": 19,
+                "completion_tokens": 20,
+                "total_tokens": 39,
+                "stream_bytes": null,
+                "cost_usd": null,
+                "meta_json": null,
+                "_chunk": 0
+            },
+            {
+                "id": "f38128444b0244a3b079b831a6324764",
+                "api_key_id": "963583da-3be8-427e-b789-60d5123c747b",
+                "ts": "2025-11-18 21:10:30.076482",
+                "stream": false,
+                "route": "chat_completions",
+                "deployment": "summarization-deployment",
+                "status": 200,
+                "prompt_tokens": 19,
+                "completion_tokens": 16,
+                "total_tokens": 35,
+                "stream_bytes": null,
+                "cost_usd": null,
+                "meta_json": null,
+                "_chunk": 0
+            },
+            {
+                "id": "aaa592f36f174258ae03a5202e3b003c",
+                "api_key_id": "963583da-3be8-427e-b789-60d5123c747b",
+                "ts": "2025-11-18 21:13:38.533170",
+                "stream": false,
+                "route": "chat_completions",
+                "deployment": "summarization-deployment",
+                "status": 200,
+                "prompt_tokens": 19,
+                "completion_tokens": 17,
+                "total_tokens": 36,
+                "stream_bytes": null,
+                "cost_usd": null,
+                "meta_json": null,
+                "_chunk": 0
+            },
+            {
+                "id": "c31e879318cc4482ae3d1aaafbe26fa9",
+                "api_key_id": "963583da-3be8-427e-b789-60d5123c747b",
+                "ts": "2025-11-18 21:14:29.595833",
+                "stream": false,
+                "route": "chat_completions",
+                "deployment": "summarization-deployment",
+                "status": 200,
+                "prompt_tokens": 19,
+                "completion_tokens": 17,
+                "total_tokens": 36,
+                "stream_bytes": null,
+                "cost_usd": null,
+                "meta_json": null,
+                "_chunk": 0
+            }
+        ]
+    }
+]

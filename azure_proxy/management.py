@@ -9,19 +9,33 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Cookie, Request, 
 from pydantic import BaseModel, Field
 from jose import jwt
 
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 
 from .DBDefinitions import (
-    get_session, AsyncSession, init_db,
+    get_session, get_session_maker,
+    AsyncSession, 
+    init_db, backupDB,
     UserModel, ApiKeyModel,
     generate_api_key, hash_token,
-    record_usage, usage_timeseries_for_key,
+    # record_usage, 
+    usage_timeseries_for_key,
     API_KEY_PREFIX_LEN,
 )
 
 from .gui import session_store
 
-router = APIRouter(prefix="/management", tags=["management"])
+async def lifespan(app):
+    yield
+    session_maker = await get_session_maker()
+    await backupDB(session_maker)
+    
+    pass
+
+router = APIRouter(
+    prefix="/management", 
+    tags=["management"],
+    lifespan=lifespan
+)
 
 # ---------- Entra ID (Azure AD) OIDC config ----------
 TENANT_ID = os.getenv("AZURE_TENANT_ID", "")
@@ -327,7 +341,7 @@ async def my_usage(
     # ownership check
     from sqlalchemy import select
     user = await _ensure_user(db, principal)
-    query = select(ApiKeyModel, UserModel).join(UserModel, ApiKeyModel.user_id == UserModel.id).where(or_(ApiKeyModel.id == q.key_id, UserModel.id == user.id))
+    query = select(ApiKeyModel, UserModel).join(UserModel, ApiKeyModel.user_id == UserModel.id).where(and_(ApiKeyModel.id == q.key_id, UserModel.id == user.id))
     if user.is_admin:
         query = select(ApiKeyModel, UserModel).join(UserModel, ApiKeyModel.user_id == UserModel.id).where( ApiKeyModel.id == q.key_id)
     res = await db.execute(query)
@@ -335,7 +349,7 @@ async def my_usage(
     if not row:
         raise HTTPException(404, "Unauthorized or key not found")
     key: ApiKeyModel = row[0]
-
+    # print(f"key: {key} q.key_id:{q.key_id}")
     since = q.since or (datetime.now(timezone.utc) - timedelta(days=30))
     until = q.until or datetime.now(timezone.utc)
 
@@ -343,4 +357,6 @@ async def my_usage(
         db, api_key_id=key.id, since=since, until=until, bucket=q.bucket
     )
     # Pydantic casting
-    return [UsagePoint(**r) for r in rows]
+    result = [UsagePoint(**r) for r in rows]
+    # print(f"Log for {q} is {len(result)} rows long")
+    return result
