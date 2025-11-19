@@ -42,6 +42,27 @@ async def init_db() -> None:
     async with asyncEngine.begin() as conn:
         await conn.run_sync(BaseModel.metadata.create_all)
 
+async def get_session_maker() -> AsyncSession:
+    global AsyncSessionMaker
+    global asyncEngine
+    if asyncEngine is None:
+        asyncEngine = create_async_engine(DATABASE_URL, future=True, echo=False)
+        
+        async with asyncEngine.begin() as conn:
+            try:
+                # await conn.run_sync(BaseModel.metadata.drop_all)
+                await conn.run_sync(BaseModel.metadata.create_all)
+                print("BaseModel.metadata.create_all finished")
+            except sqlalchemy.exc.NoReferencedTableError as e:
+                print(e)
+                print("Unable automaticaly create tables")
+                raise
+
+    if AsyncSessionMaker is None:
+        AsyncSessionMaker = async_sessionmaker(asyncEngine, expire_on_commit=False)
+
+    return AsyncSessionMaker
+
 async def get_session() -> AsyncIterator[AsyncSession]:
     global AsyncSessionMaker
     global asyncEngine
@@ -66,8 +87,6 @@ async def get_session() -> AsyncIterator[AsyncSession]:
         yield s
         await s.commit()
         print("DB session committed and closed")
-
-
 
 # ---------- Security / hashing ----------
 API_KEY_PREFIX_LEN = int(os.getenv("API_KEY_PREFIX_LEN", "8"))
@@ -125,41 +144,41 @@ async def require_api_key(
     return key
 
 # ---------- Usage recording ----------
-async def record_usage(
-    db: AsyncSession,
-    *,
-    api_key: ApiKeyModel,
-    ts: Optional[datetime] = None,
-    route: Optional[str] = None,
-    deployment: Optional[str] = None,
-    status: Optional[int] = None,
-    stream: bool = False,
-    prompt_tokens: Optional[int] = None,
-    completion_tokens: Optional[int] = None,
-    total_tokens: Optional[int] = None,
-    stream_bytes: Optional[int] = None,
-    cost_usd: Optional[float] = None,
-    meta: Optional[dict] = None,
-) -> UsageModel:
-    u = UsageModel(
-        api_key_id=api_key.id,
-        ts=ts or datetime.now(timezone.utc),
-        route=route,
-        deployment=deployment,
-        status=status,
-        stream=stream,
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
-        total_tokens=total_tokens,
-        stream_bytes=stream_bytes,
-        cost_usd=cost_usd,
-        meta_json=json.dumps(meta, ensure_ascii=False) if meta else None,
-    )
-    db.add(u)
-    api_key.last_used_at = datetime.now(timezone.utc)
-    await db.commit()
-    await db.refresh(u)
-    return u
+# async def record_usage(
+#     db: AsyncSession,
+#     *,
+#     api_key: ApiKeyModel,
+#     ts: Optional[datetime] = None,
+#     route: Optional[str] = None,
+#     deployment: Optional[str] = None,
+#     status: Optional[int] = None,
+#     stream: bool = False,
+#     prompt_tokens: Optional[int] = None,
+#     completion_tokens: Optional[int] = None,
+#     total_tokens: Optional[int] = None,
+#     stream_bytes: Optional[int] = None,
+#     cost_usd: Optional[float] = None,
+#     meta: Optional[dict] = None,
+# ) -> UsageModel:
+#     u = UsageModel(
+#         api_key_id=api_key.id,
+#         ts=ts or datetime.now(timezone.utc),
+#         route=route,
+#         deployment=deployment,
+#         status=status,
+#         stream=stream,
+#         prompt_tokens=prompt_tokens,
+#         completion_tokens=completion_tokens,
+#         total_tokens=total_tokens,
+#         stream_bytes=stream_bytes,
+#         cost_usd=cost_usd,
+#         meta_json=json.dumps(meta, ensure_ascii=False) if meta else None,
+#     )
+#     db.add(u)
+#     api_key.last_used_at = datetime.now(timezone.utc)
+#     await db.commit()
+#     await db.refresh(u)
+#     return u
 
 # ---------- Aggregations (consumption over time) ----------
 Bucket = Literal["hour", "day"]
@@ -183,13 +202,14 @@ async def usage_timeseries_for_key(
 ):
     b = _date_bucket_expr(bucket).label("bucket")
 
-    q = (
-        select(UsageModel).filter_by(api_key_id=api_key_id)
-    )
-    res = await db.execute(q)
-    rows = res.scalars().all()
-    for row in rows:
-        print(f"usage row: {row}")
+    # q = (
+    #     select(UsageModel)#.filter_by(api_key_id=api_key_id)
+    # )
+    # res = await db.execute(q)
+    # rows = res.scalars().all()
+    # print(f"api_key_id: {api_key_id}, {type(api_key_id)}")
+    # for row in rows:
+    #     print(f"usage row: {row}, {row.api_key_id==api_key_id}")
 
     q = (
         select(
@@ -201,10 +221,72 @@ async def usage_timeseries_for_key(
             func.sum(UsageModel.stream_bytes).label("stream_bytes"),
             func.sum(UsageModel.cost_usd).label("cost_usd"),
         )
-        .where(UsageModel.api_key_id == api_key_id, UsageModel.ts >= since, UsageModel.ts < until)
+        .where(
+            UsageModel.api_key_id == api_key_id,
+            UsageModel.ts >= since, 
+            UsageModel.ts < until
+        )
         .group_by(b)
         .order_by(b.asc())
     )
     res = await db.execute(q)
     rows = res.mappings().all()
-    return [dict(r) for r in rows]
+    result = [dict(r) for r in rows]
+    print(result)
+    return  result
+
+async def backupDB(asyncSessionMaker, filename="./systemdata.backup.json"):
+    import sqlalchemy
+    import dataclasses
+    import json
+
+    from .BaseModel import BaseModel
+    data = []
+    dbModels = [mapper.class_ for mapper in BaseModel.registry.mappers]
+    async with asyncSessionMaker() as session:
+        for model in dbModels:
+            sqlquery = sqlalchemy.select(model)
+            rows = await session.execute(sqlquery)
+            # vsechny radky do dict
+            rowsdict = {}
+            for row in rows:
+                # print(row)
+                asdict = dataclasses.asdict(row[0])
+                id = asdict.get("id", None)
+                if id is None: continue
+                rowsdict[id] = asdict
+            # vsechny primarní klice do ids
+            ids = set(rowsdict.keys())
+            todo = set()
+            done = set()
+            chunk_id = 0
+            while len(done) < len(ids):
+                for row in rowsdict.values():
+                    id = row.get("id", None)
+                    if id in done: continue
+                    skip_this_id = False
+                    for key, value in row.items():
+                        if key == "id": continue
+                        # if not isinstance(value, IDType): continue
+                        if value is None: continue
+                        if value not in ids: continue
+                        if value not in done: 
+                            # print(row, key, value)
+                            skip_this_id = True
+                            break
+                            # primarni klic je zpracovatelny, nemame zavislost na nezpracovanych klicich
+                    if skip_this_id: continue
+                    row["_chunk"] = chunk_id
+                    todo.add(id)
+                print(f"{model.__tablename__} chunk {chunk_id} todo/done/all {len(todo)}/{len(done)}/{len(ids)}")
+                if len(todo) == 0: break
+                done = done.union(todo)
+                todo = set()
+                chunk_id += 1
+            data.append({
+                model.__tablename__: list(rowsdict.values())
+            })
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False, default=str)
+    
+    print("backup done", flush=True)

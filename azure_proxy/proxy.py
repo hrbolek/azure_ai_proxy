@@ -7,13 +7,13 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 import httpx
-from fastapi import FastAPI, Request, Response, HTTPException, Cookie, Header, Depends
+from fastapi import FastAPI, Request, Response, HTTPException, Cookie, Header, Depends, Body
 from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
 
 from sqlalchemy import select
 
 # from db import init_db
-from .DBDefinitions import get_session
+from .DBDefinitions import get_session, get_session_maker, AsyncSession
 from .KeyVaultApiKeyProvider import KeyVaultApiKeyProvider
 
 # ==== Konfigurace z env ====
@@ -75,31 +75,35 @@ async def log_usage_record(
                 f.write(line + "\n")
 
     from .DBDefinitions import UsageModel
-    session = getattr(request.state, "session")
-    usage_row = UsageModel(
-        api_key_id=record.get("token_id"),
-        id=uuid.uuid4().hex,
-        ts=datetime.datetime.now(tz=datetime.timezone.utc),
-        stream=record.get("stream"),
-        # token_id=record.get("token_id"),
-        route=record.get("route"),
-        deployment=record.get("deployment"),
-        status=record.get("status"),
-        stream_bytes=record.get("usage", {}).get("usage_counter"),
-        
-        prompt_tokens=record.get("usage", {}).get("prompt_tokens"),
-        completion_tokens=record.get("usage", {}).get("completion_tokens"),
-        total_tokens=record.get("usage", {}).get("total_tokens"),
-        # usage=record.get("usage"),
-        # idempotency_key=record.get("idempotency_key"),
-        # client_ip=record.get("client_ip"),
-        # req_x_request_id=record.get("req_x_request_id"),
-        # upstream_request_id=record.get("upstream_request_id"),
-        # ratelimit_remaining_tokens=record.get("ratelimit_remaining_tokens"),
-        # ratelimit_limit_tokens=record.get("ratelimit_limit_tokens"),
-    )
-    session.add(usage_row)
-    await session.commit()
+    # session = getattr(request.state, "session")
+    session_maker: AsyncSession = getattr(request.state, "session_maker")
+    async with session_maker() as session:
+        usage_row = UsageModel(
+            api_key_id=record.get("token_id"),
+            id=uuid.uuid4().hex,
+            ts=datetime.datetime.now(tz=datetime.timezone.utc),
+            stream=record.get("stream"),
+            # token_id=record.get("token_id"),
+            route=record.get("route"),
+            deployment=record.get("deployment"),
+            status=record.get("status"),
+            stream_bytes=record.get("usage", {}).get("usage_counter"),
+            
+            prompt_tokens=record.get("usage", {}).get("prompt_tokens"),
+            completion_tokens=record.get("usage", {}).get("completion_tokens"),
+            total_tokens=record.get("usage", {}).get("total_tokens"),
+            # usage=record.get("usage"),
+            # idempotency_key=record.get("idempotency_key"),
+            # client_ip=record.get("client_ip"),
+            # req_x_request_id=record.get("req_x_request_id"),
+            # upstream_request_id=record.get("upstream_request_id"),
+            # ratelimit_remaining_tokens=record.get("ratelimit_remaining_tokens"),
+            # ratelimit_limit_tokens=record.get("ratelimit_limit_tokens"),
+        )
+        # print(f"usage, {usage_row}")
+        session.add(usage_row)
+        await session.commit()
+        # print(f"commit ok")
     return record
 
 def make_usage_record(
@@ -196,7 +200,7 @@ async def lifespan(app: FastAPI):
     yield
     if kv_provider:
         await kv_provider.close()    
-
+    
     await client.aclose()
 
 app = FastAPI(
@@ -610,7 +614,8 @@ async def get_token(
     return token
 
 async def get_token_row(
-    session: Any = Depends(get_session), 
+    # session: Any = Depends(get_session), 
+    session_maker: Any = Depends(get_session_maker),
     token: str = Depends(get_token)
 ):
     from .DBDefinitions import ApiKeyModel, hash_token
@@ -622,29 +627,30 @@ async def get_token_row(
     #     print(f"DB ApiKey row: {result}")
 
     statement = select(ApiKeyModel).filter_by(key_hash=hashed_token, is_active=True)
-    results = await session.execute(statement)
-    result = next(results, None)
-    # print(f"token: {token}, result: {result}")
-    if result:
+    async with session_maker() as session:
+        results = await session.execute(statement)
+        result = next(results, None)
+        # print(f"token: {token}, result: {result}")
+        if result:
 
-        # from sqlalchemy.inspection import inspect as sa_inspect        
-        # def asdict_columns(obj) -> dict[str, Any]:
-        #     insp = sa_inspect(obj)
-        #     # `mapper.column_attrs` = jen sloupce (včetně PK/FK), bez relationshipů
-        #     return {attr.key: getattr(obj, attr.key) for attr in insp.mapper.column_attrs}
-        first = result[0]
-        # print(f"first: {first}")
-        # fist_json = dataclasses.asdict(first)
-        # print(f"first as dict: {fist_json}")
-        # print(f"{first.expires_at=}, {first.user_id=}")
-        current_datetime = datetime.datetime.now(tz=None)
-        if first.expires_at and first.expires_at < current_datetime:
-            first.is_active = False
+            # from sqlalchemy.inspection import inspect as sa_inspect        
+            # def asdict_columns(obj) -> dict[str, Any]:
+            #     insp = sa_inspect(obj)
+            #     # `mapper.column_attrs` = jen sloupce (včetně PK/FK), bez relationshipů
+            #     return {attr.key: getattr(obj, attr.key) for attr in insp.mapper.column_attrs}
+            first = result[0]
+            # print(f"first: {first}")
+            # fist_json = dataclasses.asdict(first)
+            # print(f"first as dict: {fist_json}")
+            # print(f"{first.expires_at=}, {first.user_id=}")
+            current_datetime = datetime.datetime.now(tz=None)
+            if first.expires_at and first.expires_at < current_datetime:
+                first.is_active = False
+                await session.commit()
+                return None
+            first.last_used_at = current_datetime
             await session.commit()
-            return None
-        first.last_used_at = current_datetime
-        await session.commit()
-        return first
+            return first
     return None
 
 
@@ -654,13 +660,15 @@ async def chat_completions(
     deployment: str, 
     request: Request, 
     # authorization: str = Cookie(None),
-    session: Any = Depends(get_session),
+    # session: Any = Depends(get_session),
+    session_maker: Any = Depends(get_session_maker),
     token_row: Any = Depends(get_token_row)
 ):
     if not token_row:
         raise HTTPException(status_code=401, detail="Unauthorized API key")
     request.state.token_row = token_row  # pro případné další použití v middlewaru apod.
-    request.state.session = session  # pro logování usage
+    # request.state.session = session  # pro logování usage
+    request.state.session_maker = session_maker  # pro logování usage
     return await openai_v1_chat_completions_general(
         request=request,
         useforce=True,
@@ -673,13 +681,15 @@ async def chat_completions(
 async def embeddings_azure(
     deployment: str,
     request: Request,
-    session: Any = Depends(get_session),
+    # session: Any = Depends(get_session),
+    session_maker: Any = Depends(get_session_maker),
     token_row: Any = Depends(get_token_row)
 ):
     if not token_row:
         raise HTTPException(status_code=401, detail="Unauthorized API key")
     request.state.token_row = token_row
-    request.state.session = session
+    # request.state.session = session
+    request.state.session_maker = session_maker  # pro logování usage
     return await openai_v1_embeddings_general(
         request=request,
         deployment=deployment,
@@ -714,7 +724,8 @@ async def list_models_openai(
 @app.post("/chat/completions")
 async def openai_v1_chat_completions(
     request: Request,
-    session: Any = Depends(get_session),
+    # session: Any = Depends(get_session),
+    session_maker: Any = Depends(get_session_maker),
     token_row: Any = Depends(get_token_row)
 ):
     """
@@ -724,7 +735,8 @@ async def openai_v1_chat_completions(
         raise HTTPException(status_code=401, detail="Unauthorized API key")
     
     request.state.token_row = token_row  # pro případné další použití v middlewaru apod.
-    request.state.session = session  # pro logování usage
+    # request.state.session = session  # pro logování usage
+    request.state.session_maker = session_maker  # pro logování usage
     return await openai_v1_chat_completions_general(
         request=request,
         useforce=True,
@@ -735,11 +747,17 @@ async def openai_v1_chat_completions(
 # ---------- OpenAI-compatible: /v1/responses ----------
 @app.post("/v1/responses")
 @app.post("/responses")
-async def openai_v1_responses(request: Request):
+async def openai_v1_responses(
+    request: Request,
+    session_maker: Any = Depends(get_session_maker),
+    token_row: Any = Depends(get_token_row)
+):
     """
     OpenAI Responses API (model=..., input=[...]).
     Přesměruje na Azure /responses (2024-12-01-preview a novější).
     """
+    request.state.token_row = token_row  # pro případné další použití v middlewaru apod.
+    request.state.session_maker = session_maker  # pro logování usage
     return await openai_v1_chat_completions_general(
         request=request,
         useforce=False,
@@ -751,13 +769,15 @@ async def openai_v1_responses(request: Request):
 @app.post("/embeddings")  # volitelný alias
 async def embeddings_openai(
     request: Request,
-    session: Any = Depends(get_session),
+    # session: Any = Depends(get_session),
+    session_maker: Any = Depends(get_session_maker),
     token_row: Any = Depends(get_token_row)
 ):
     if not token_row:
         raise HTTPException(status_code=401, detail="Unauthorized API key")
     request.state.token_row = token_row
-    request.state.session = session
+    # request.state.session = session
+    request.state.session_maker = session_maker  # pro logování usage
     return await openai_v1_embeddings_general(
         request=request,
         deployment=None,
@@ -771,17 +791,18 @@ async def healthcheck():
 @app.post("/llmtest/{deployment}")
 async def llmtest(
     deployment: str,
-    query: str
+    query: str,
+    apikey: str | None = Header(..., alias="apikey"),
 ):
     
     from openai import AzureOpenAI, AsyncAzureOpenAI
     from openai.types.chat import ChatCompletion
     from openai.resources.chat.completions import AsyncCompletions
-    UPSTREAM_ENDPOINT = "http://localhost:8003/"
+    UPSTREAM_ENDPOINT = "http://localhost:8000/"
     client = AsyncAzureOpenAI(
         azure_endpoint=UPSTREAM_ENDPOINT,
         azure_deployment=deployment,  # tvůj deployment name
-        api_key=UPSTREAM_API_KEY,
+        api_key=apikey or UPSTREAM_API_KEY,
         api_version=UPSTREAM_API_VERSION
     )
 
