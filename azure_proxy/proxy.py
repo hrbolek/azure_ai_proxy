@@ -9,7 +9,6 @@ import uvicorn
 import httpx
 from fastapi import FastAPI, Request, Response, HTTPException, Cookie, Header, Depends, Body
 from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
-from fastapi.middleware.cors import CORSMiddleware
 
 from sqlalchemy import select
 
@@ -49,6 +48,7 @@ except Exception:
         "gpt-5-nano": "gpt-5-nano",
         "gpt-4.1": "orchestration-deployment",
         "gpt-4o-mini": "summarization-deployment",
+        "text-embedding-3-large": "text-embedding-3-large",
     }
 
 # region Usage Logs
@@ -79,8 +79,24 @@ async def log_usage_record(
     # session = getattr(request.state, "session")
     session_maker: AsyncSession = getattr(request.state, "session_maker")
     async with session_maker() as session:
+        from .DBDefinitions import UserModel
+        from sqlalchemy import select
+        user_email = record.get("user_email")
+        if user_email:
+            # Check if the user with this email exists
+            res = await session.execute(select(UserModel).where(UserModel.email == user_email))
+            user = res.scalars().first()
+            if not user:
+                user = UserModel(email=user_email)
+                session.add(user)
+                await session.commit()
+                print(f"User created: {user.email}")
+            else:
+                print(f"User already exists: {user.email}")
+            record["user_id"] = user.id
         usage_row = UsageModel(
             api_key_id=record.get("token_id"),
+            user_id=record.get("user_id"),
             id=uuid.uuid4().hex,
             ts=datetime.datetime.now(tz=datetime.timezone.utc),
             stream=record.get("stream"),
@@ -130,6 +146,7 @@ def make_usage_record(
         "status": status,
         "usage": usage or {},
         "idempotency_key": idempotency_key,
+        "user_email": request.headers.get("X-OpenWebUI-User-Email") if request else None,
         "client_ip": getattr(request.client, "host", None) if request else None,
         "req_x_request_id": request.headers.get("X-Request-Id") if request else None,
     }
@@ -207,14 +224,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Azure OpenAI Reverse Proxy",
     lifespan=lifespan
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],          # allow every origin
-    allow_credentials=True,
-    allow_methods=["*"],          # permit all verbs (POST, OPTIONS, etc.)
-    allow_headers=["*"],          # accept any request headers
 )
 
 async def require_auth(request: Request):
@@ -394,7 +403,6 @@ async def forward_stream_with_usage(
         body["stream_options"] = stream_options
     else:
         stream_options["include_usage"] = True
-
     
     async def _gen():
         usage_holder = None
@@ -485,6 +493,7 @@ async def forward_stream_with_usage(
                     upstream_headers=upstream_headers
                 )
             )
+            usage_holder = None
         except Exception as _e:
             print(f"[USAGE WARN] {type(_e).__name__}: {_e}")
 
@@ -731,7 +740,6 @@ async def list_models_openai(
 # ---------- OpenAI-compatible: /v1/chat/completions ----------
 @app.post("/v1/chat/completions")
 @app.post("/chat/completions")
-
 async def openai_v1_chat_completions(
     request: Request,
     # session: Any = Depends(get_session),
@@ -741,6 +749,8 @@ async def openai_v1_chat_completions(
     """
     Přijme OpenAI styl (model=..., messages=[...]) a přesměruje na Azure chat/completions.
     """
+    auth_header = request.headers.get('Authorization')
+
     if not token_row:
         raise HTTPException(status_code=401, detail="Unauthorized API key")
     

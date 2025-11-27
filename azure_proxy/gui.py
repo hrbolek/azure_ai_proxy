@@ -162,6 +162,85 @@ def init_gui(fastapi_app: FastAPI) -> None:
         return RedirectResponse("/mgmt")
 
     # --------- NiceGUI stránka: /mgmt ---------
+    @ui.page("/users")
+    async def users_page():
+        from nicegui import Client
+        client: Client = ui.context.client
+        request: Request = client.request
+        sid = request.cookies.get('sid')
+        sess = None
+        user_id = None
+        if sid and sid in session_store:
+            sess = session_store[sid]
+            # Tohle už je UI kontext → můžeme použít storage.user
+            ngapp.storage.user['id_token'] = sess.get('id_token')
+            ngapp.storage.user['access_token'] = sess.get('access_token')
+            ngapp.storage.user['name'] = sess.get('name', 'user')
+            user_id = sess.get('user_oid')
+            # volitelně: session z paměti smazat / obnovit expiraci
+            # del SESSIONS[sid]
+        else:
+            ui.run_javascript("window.location.href='/auth/login'")
+            return   
+        with ui.card().classes("w-full"):
+            ui.label("Users").classes("text-lg mb-2")
+            columns = [
+                {"name": "email", "label": "Email", "field": "email"},
+                {"name": "display_name", "label": "Display Name", "field": "display_name"},
+                {"name": "is_active", "label": "Active", "field": "is_active"},
+                {"name": "is_admin", "label": "Admin", "field": "is_admin"},
+                {"name": "created_at", "label": "Created", "field": "created_at"},
+            ]
+            table = ui.table(
+                columns=columns, 
+                rows=[], 
+                row_key="id", 
+                selection='single',   
+                pagination=10).classes("w-full")
+            async def refresh_users():
+                rows = await _api_get("/management/users", cookies={"sid": sid} if sid else {})
+                table.rows = rows
+                table.update()
+            await refresh_users()
+            async def load_usage():
+                sel = table.selected
+                if not sel:
+                    ui.notify("Select a key to load usage", type="warning")
+                    return
+                sel = sel[0]
+                payload = {"user_id": sel["id"], "bucket": "day"}
+                rows = await _api_post(
+                    "/management/usage", 
+                    json_body=payload,
+                    cookies={"sid": sid} if sid else {}
+                )
+                xs = [r["bucket"] for r in rows]
+                reqs = [r["requests"] for r in rows]
+                toks = [r.get("total_tokens") or 0 for r in rows]
+                chart.options["xAxis"]["data"] = xs
+                chart.options["series"][0]["data"] = reqs
+                chart.options["series"][1]["data"] = toks
+                chart.update()
+
+            with ui.row().classes("gap-2"):
+                ui.button("Load usage for selected key", on_click=load_usage)
+                ui.button("Show statistics for keys", on_click=lambda: ui.run_javascript("window.location.href='/mgmt'"))
+
+        with ui.card().classes("w-full mt-4"):
+            ui.label("Usage (last 30 days)").classes("text-lg mb-2")
+            chart = ui.echart(
+                {
+                    "tooltip": {"trigger": "axis"},
+                    "xAxis": {"type": "category", "data": []},
+                    "yAxis": {"type": "value"},
+                    "legend": {"data": ["requests", "total_tokens"]},
+                    "series": [
+                        {"name": "requests", "type": "bar", "data": []},
+                        {"name": "total_tokens", "type": "line", "data": []},
+                    ],
+                }
+            ).classes("w-full h-80")
+
     @ui.page("/")
     async def mgmt_page():
         from nicegui import Client
@@ -287,6 +366,7 @@ def init_gui(fastapi_app: FastAPI) -> None:
                 ui.button("Create key", color="primary", on_click=open_create_key_dialog)
                 ui.button("Enable", on_click=lambda: enable_disable(table.selected, True))
                 ui.button("Disable", on_click=lambda: enable_disable(table.selected, False))
+                ui.button("Show statistics for users", on_click=lambda: ui.run_javascript("window.location.href='/mgmt/users'"))
 
         # --- sekce spotřeby ---
         with ui.card().classes("w-full mt-4"):

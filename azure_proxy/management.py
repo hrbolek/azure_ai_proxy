@@ -327,7 +327,8 @@ async def enable_key(
     return {"ok": True}
 
 class UsageQuery(BaseModel):
-    key_id: str
+    key_id: Optional[str] = None
+    user_id: Optional[str] = None
     since: Optional[datetime] = None
     until: Optional[datetime] = None
     bucket: Literal["hour", "day"] = "day"
@@ -341,22 +342,55 @@ async def my_usage(
     # ownership check
     from sqlalchemy import select
     user = await _ensure_user(db, principal)
-    query = select(ApiKeyModel, UserModel).join(UserModel, ApiKeyModel.user_id == UserModel.id).where(and_(ApiKeyModel.id == q.key_id, UserModel.id == user.id))
-    if user.is_admin:
-        query = select(ApiKeyModel, UserModel).join(UserModel, ApiKeyModel.user_id == UserModel.id).where( ApiKeyModel.id == q.key_id)
+    query = select(ApiKeyModel, UserModel).join(UserModel, ApiKeyModel.user_id == UserModel.id)
+    if q.key_id:
+        if user.is_admin:
+            query = query.where( ApiKeyModel.id == q.key_id)
+        else:
+            query = query.where(and_(ApiKeyModel.id == q.key_id, UserModel.id == user.id))
+    if q.user_id:
+        query = query.where(ApiKeyModel.user_id == q.user_id)
     res = await db.execute(query)
     row = res.first()
     if not row:
         raise HTTPException(404, "Unauthorized or key not found")
     key: ApiKeyModel = row[0]
-    # print(f"key: {key} q.key_id:{q.key_id}")
     since = q.since or (datetime.now(timezone.utc) - timedelta(days=30))
     until = q.until or datetime.now(timezone.utc)
 
     rows = await usage_timeseries_for_key(
-        db, api_key_id=key.id, since=since, until=until, bucket=q.bucket
+        db, api_key_id=q.key_id, user_id=q.user_id, since=since, until=until, bucket=q.bucket
     )
     # Pydantic casting
     result = [UsagePoint(**r) for r in rows]
-    # print(f"Log for {q} is {len(result)} rows long")
     return result
+
+
+class UserInfo(BaseModel):
+    id: str
+    oid: Optional[str]
+    email: Optional[str]
+    display_name: Optional[str]
+    is_active: Optional[bool] = True
+    is_admin: Optional[bool] = False
+    created_at: Optional[datetime] = None
+
+@router.get("/users", response_model=list[UserInfo])
+async def list_users(
+    principal: Principal = Depends(get_principal),
+    db: AsyncSession = Depends(get_session),
+):
+    from sqlalchemy import select
+    res = await db.execute(select(UserModel))
+    users = res.scalars().all()
+    return [
+        UserInfo(
+            id=u.id,
+            oid=u.oid,
+            email=u.email,
+            display_name=u.display_name,
+            is_active=getattr(u, "is_active", True),
+            is_admin=getattr(u, "is_admin", False),
+            created_at=getattr(u, "created_at", None)
+        ) for u in users
+    ]

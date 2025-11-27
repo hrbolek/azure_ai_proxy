@@ -31,3 +31,7 @@ prometheus_client
 
 azure-identity 
 azure-keyvault-secrets
+
+mcpo
+mcp-server-time
+arxiv-mcp-server
