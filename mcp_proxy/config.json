@@ -1,0 +1,17 @@
+{
+    "mcpServers": {
+        "time": {
+            "command": "mcp-server-time",
+            "args": [
+                "--local-timezone=America/New_York"
+            ]
+        },
+        "arxiv": {
+            "command": "arxiv-mcp-server",
+            "args": [
+                "--storage-path",
+                "mcpdata"
+            ]
+        }
+    }
+}

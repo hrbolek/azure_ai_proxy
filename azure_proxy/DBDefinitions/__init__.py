@@ -29,7 +29,7 @@ from .UsageModel import UsageModel
 
 
 # ---------- DB engine ----------
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./proxy.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./data/proxy.db")
 
 # asyncEngine = create_async_engine(DATABASE_URL, future=True, echo=False)
 # AsyncSessionMaker = async_sessionmaker(asyncEngine, expire_on_commit=False)
@@ -195,7 +195,8 @@ def _date_bucket_expr(bucket: Bucket):
 async def usage_timeseries_for_key(
     db: AsyncSession,
     *,
-    api_key_id: str,
+    api_key_id: Optional[str] = None,
+    user_id: Optional[str] = None,
     since: datetime,
     until: datetime,
     bucket: Bucket = "day",
@@ -222,7 +223,8 @@ async def usage_timeseries_for_key(
             func.sum(UsageModel.cost_usd).label("cost_usd"),
         )
         .where(
-            UsageModel.api_key_id == api_key_id,
+            UsageModel.api_key_id == api_key_id if api_key_id else True,
+            UsageModel.user_id == user_id if user_id else True,
             UsageModel.ts >= since, 
             UsageModel.ts < until
         )

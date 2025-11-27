@@ -15,8 +15,9 @@ async def lifespan(app_instance):
     global mcp_process, mcp_client
     mcp_port = os.getenv("MCP_PORT", "7999")
     mcp_api_key = os.getenv("MCP_API_KEY", "top-secret")
-    mcp_config = os.getenv("MCP_CONFIG", "config.json")
+    mcp_config = os.getenv("MCP_CONFIG", "mcp_proxy/config.json")
     
+    print(f"Starting MCP server with config: {mcp_config}")
     mcp_process = subprocess.Popen(
         ["mcpo", "--port", mcp_port, "--api-key", mcp_api_key, "--config", mcp_config],
         stdout=subprocess.PIPE,

@@ -16,6 +16,7 @@ class UsageModel(BaseModel):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default_factory=lambda: str(uuid4()))
 
     api_key_id: Mapped[str] = mapped_column(ForeignKey("api_keys.id", ondelete="CASCADE"), index=True, default=None, nullable=True)
+    user_id: Mapped[Optional[str]] = mapped_column(String(36), default=None)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default_factory=lambda: datetime.now(timezone.utc), index=True)
     stream: Mapped[bool] = mapped_column(Boolean, default=False)
 

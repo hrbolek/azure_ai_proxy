@@ -29,3 +29,4 @@
 **/proxy.db
 openwebui/.env.openwebui
 openwebui/.env.openwebui.ce
+systemdata.backup.json
