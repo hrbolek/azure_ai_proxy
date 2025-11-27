@@ -661,8 +661,12 @@ async def get_token_row(
             # fist_json = dataclasses.asdict(first)
             # print(f"first as dict: {fist_json}")
             # print(f"{first.expires_at=}, {first.user_id=}")
-            current_datetime = datetime.datetime.now(tz=None)
-            if first.expires_at and first.expires_at < current_datetime:
+            current_datetime = datetime.datetime.now(datetime.timezone.utc)
+            expires_at = first.expires_at
+            if expires_at and expires_at.tzinfo is None:
+                # Align naive timestamps with UTC so comparisons stay consistent
+                expires_at = expires_at.replace(tzinfo=datetime.timezone.utc)
+            if expires_at and expires_at < current_datetime:
                 first.is_active = False
                 await session.commit()
                 return None
