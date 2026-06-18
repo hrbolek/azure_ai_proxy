@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>User Spend & Budget Dashboard</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121933;
+      --panel-2: #1a2447;
+      --text: #e8ecf8;
+      --muted: #9aa6c7;
+      --accent: #6ea8fe;
+      --good: #38d39f;
+      --warn: #f6c445;
+      --bad: #ff6b6b;
+      --border: #2a3566;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, #0b1020 0%, #111735 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 32px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+
+    .panel {
+      background: rgba(18, 25, 51, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    button {
+      padding: 14px 18px;
+      border: none;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #08101f;
+      font-weight: 700;
+      cursor: pointer;
+      min-width: 140px;
+    }
+
+    button:hover {
+      filter: brightness(1.05);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    .status {
+      margin-top: 12px;
+      min-height: 20px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .status.error {
+      color: var(--bad);
+    }
+
+    .status.success {
+      color: var(--good);
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    .card .label {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .card .value {
+      font-size: 28px;
+      font-weight: 700;
+      word-break: break-word;
+    }
+
+    .progress-wrap {
+      margin-top: 18px;
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .progress {
+      width: 100%;
+      height: 18px;
+      background: #0c1430;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--good), var(--warn));
+      transition: width 0.35s ease;
+    }
+
+    .details-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+    }
+
+    .detail-item {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .detail-key {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .detail-value {
+      font-size: 15px;
+      word-break: break-word;
+    }
+
+    .section-title {
+      font-size: 20px;
+      margin: 0 0 16px;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .small {
+      font-size: 12px;
+    }
+
+    code {
+      background: #0c1430;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>User Spend & Budget</h1>
+    <div class="subtitle">
+      Enter your API token to load user budget and spend information from
+      <code>https://ciproxy.unob.cz/user/info</code>
+    </div>
+
+    <div class="panel">
+      <div class="form-row">
+        <div>
+          <label for="tokenInput">API Token</label>
+          <input
+            id="tokenInput"
+            type="text"
+            placeholder="Paste Bearer token here, e.g. sk-..."
+            autocomplete="off"
+          />
+        </div>
+        <button id="loadBtn">Load Data</button>
+      </div>
+      <div class="status" id="status"></div>
+      <div class="small muted" style="margin-top: 8px;">
+        The token is stored only in your browser localStorage for convenience.
+      </div>
+    </div>
+
+    <div id="dashboard" class="hidden">
+      <div class="panel">
+        <div class="cards">
+          <div class="card">
+            <div class="label">Total Spend</div>
+            <div class="value" id="spendValue">$0.00</div>
+          </div>
+          <div class="card">
+            <div class="label">Max Budget</div>
+            <div class="value" id="budgetValue">$0.00</div>
+          </div>
+          <div class="card">
+            <div class="label">Remaining</div>
+            <div class="value" id="remainingValue">$0.00</div>
+          </div>
+          <div class="card">
+            <div class="label">Usage</div>
+            <div class="value" id="usagePercent">0%</div>
+          </div>
+        </div>
+
+        <div class="progress-wrap">
+          <div class="progress-label">
+            <span>Budget usage</span>
+            <span id="progressText">0 / 0</span>
+          </div>
+          <div class="progress">
+            <div id="progressBar" class="progress-bar"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2 class="section-title">User Details</h2>
+        <div class="details-grid">
+          <div class="detail-item">
+            <div class="detail-key">User ID</div>
+            <div class="detail-value" id="userId"></div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-key">Email</div>
+            <div class="detail-value" id="userEmail"></div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-key">Role</div>
+            <div class="detail-value" id="userRole"></div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-key">Budget Duration</div>
+            <div class="detail-value" id="budgetDuration"></div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-key">Budget Reset At</div>
+            <div class="detail-value" id="budgetResetAt"></div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-key">Number of Keys</div>
+            <div class="detail-value" id="keysCount"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2 class="section-title">Key Spend</h2>
+        <div class="details-grid" id="keysList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "https://ciproxy.unob.cz/user/info";
+    const tokenInput = document.getElementById("tokenInput");
+    const loadBtn = document.getElementById("loadBtn");
+    const statusEl = document.getElementById("status");
+    const dashboardEl = document.getElementById("dashboard");
+
+    const els = {
+      spendValue: document.getElementById("spendValue"),
+      budgetValue: document.getElementById("budgetValue"),
+      remainingValue: document.getElementById("remainingValue"),
+      usagePercent: document.getElementById("usagePercent"),
+      progressText: document.getElementById("progressText"),
+      progressBar: document.getElementById("progressBar"),
+      userId: document.getElementById("userId"),
+      userEmail: document.getElementById("userEmail"),
+      userRole: document.getElementById("userRole"),
+      budgetDuration: document.getElementById("budgetDuration"),
+      budgetResetAt: document.getElementById("budgetResetAt"),
+      keysCount: document.getElementById("keysCount"),
+      keysList: document.getElementById("keysList")
+    };
+
+    function setStatus(message, type = "") {
+      statusEl.textContent = message;
+      statusEl.className = "status" + (type ? " " + type : "");
+    }
+
+    function money(value) {
+      const number = Number(value || 0);
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: number !== 0 && Math.abs(number) < 0.01 ? 6 : 2,
+        maximumFractionDigits: number !== 0 && Math.abs(number) < 0.01 ? 6 : 2
+      }).format(number);
+    }
+
+    function formatDate(value) {
+      if (!value) return "-";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleString();
+    }
+
+    function safeText(value) {
+      return value === null || value === undefined || value === "" ? "-" : String(value);
+    }
+
+    function render(data) {
+      const userInfo = data.user_info || {};
+      const spend = Number(userInfo.spend || 0);
+      const maxBudget = Number(userInfo.max_budget || 0);
+      const remaining = Math.max(maxBudget - spend, 0);
+      const percent = maxBudget > 0 ? Math.min((spend / maxBudget) * 100, 100) : 0;
+
+      els.spendValue.textContent = money(spend);
+      els.budgetValue.textContent = money(maxBudget);
+      els.remainingValue.textContent = money(remaining);
+      els.usagePercent.textContent = percent.toFixed(2) + "%";
+      els.progressText.textContent = money(spend) + " / " + money(maxBudget);
+      els.progressBar.style.width = percent.toFixed(2) + "%";
+
+      if (percent >= 90) {
+        els.progressBar.style.background = "linear-gradient(90deg, #f6c445, #ff6b6b)";
+      } else {
+        els.progressBar.style.background = "linear-gradient(90deg, #38d39f, #f6c445)";
+      }
+
+      els.userId.textContent = safeText(userInfo.user_id || data.user_id);
+      els.userEmail.textContent = safeText(userInfo.user_email);
+      els.userRole.textContent = safeText(userInfo.user_role);
+      els.budgetDuration.textContent = safeText(userInfo.budget_duration);
+      els.budgetResetAt.textContent = formatDate(userInfo.budget_reset_at);
+      els.keysCount.textContent = Array.isArray(data.keys) ? String(data.keys.length) : "0";
+
+      const keys = Array.isArray(data.keys) ? data.keys : [];
+      els.keysList.innerHTML = "";
+
+      if (keys.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "detail-item";
+        empty.innerHTML = '<div class="detail-key">Keys</div><div class="detail-value">No keys found</div>';
+        els.keysList.appendChild(empty);
+      } else {
+        keys.forEach((key) => {
+          const item = document.createElement("div");
+          item.className = "detail-item";
+          item.innerHTML = `
+            <div class="detail-key">${safeText(key.key_name || "Key")}</div>
+            <div class="detail-value">
+              <div><strong>Spend:</strong> ${money(key.spend || 0)}</div>
+              <div><strong>Last Active:</strong> ${formatDate(key.last_active)}</div>
+              <div><strong>Team Alias:</strong> ${safeText(key.team_alias)}</div>
+            </div>
+          `;
+          els.keysList.appendChild(item);
+        });
+      }
+
+      dashboardEl.classList.remove("hidden");
+    }
+
+    async function loadData() {
+      const token = tokenInput.value.trim();
+
+      if (!token) {
+        setStatus("Please enter an API token.", "error");
+        dashboardEl.classList.add("hidden");
+        return;
+      }
+
+      localStorage.setItem("budget_dashboard_token", token);
+      setStatus("Loading data...");
+      loadBtn.disabled = true;
+
+      try {
+        const response = await fetch(API_URL, {
+          method: "GET",
+          headers: {
+            "authorization": "Bearer " + token,
+            "content-type": "application/json"
+          }
+        });
+
+        const text = await response.text();
+        let data;
+
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error("Server did not return valid JSON. Response: " + text.slice(0, 200));
+        }
+
+        if (!response.ok) {
+          throw new Error(data.error || data.message || ("HTTP " + response.status));
+        }
+
+        render(data);
+        setStatus("Data loaded successfully.", "success");
+      } catch (error) {
+        dashboardEl.classList.add("hidden");
+        setStatus(
+          "Failed to load data. " +
+          error.message +
+          " If this page is opened locally, the API may also block browser requests due to CORS.",
+          "error"
+        );
+      } finally {
+        loadBtn.disabled = false;
+      }
+    }
+
+    loadBtn.addEventListener("click", loadData);
+
+    tokenInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        loadData();
+      }
+    });
+
+    const savedToken = localStorage.getItem("budget_dashboard_token");
+    if (savedToken) {
+      tokenInput.value = savedToken;
+    }
+  </script>
+</body>
+</html>
