@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="cs">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>User Spend & Budget Dashboard</title>
+  <title>Přehled čerpání a rozpočtu uživatele</title>
   <style>
     :root {
       --bg: #0b1020;
@@ -220,28 +220,28 @@
 </head>
 <body>
   <div class="container">
-    <h1>User Spend & Budget</h1>
+    <h1>Čerpání a rozpočet uživatele</h1>
     <div class="subtitle">
-      Enter your API token to load user budget and spend information from
+      Zadejte svůj API token pro načtení informací o rozpočtu a čerpání z
       <code>https://ciproxy.unob.cz/user/info</code>
     </div>
 
     <div class="panel">
       <div class="form-row">
         <div>
-          <label for="tokenInput">API Token</label>
+          <label for="tokenInput">API token</label>
           <input
             id="tokenInput"
             type="text"
-            placeholder="Paste Bearer token here, e.g. sk-..."
+            placeholder="Vložte sem Bearer token, např. sk-..."
             autocomplete="off"
           />
         </div>
-        <button id="loadBtn">Load Data</button>
+        <button id="loadBtn">Načíst data</button>
       </div>
       <div class="status" id="status"></div>
       <div class="small muted" style="margin-top: 8px;">
-        The token is stored only in your browser localStorage for convenience.
+        Token se pro pohodlí ukládá pouze do localStorage ve vašem prohlížeči.
       </div>
     </div>
 
@@ -249,26 +249,26 @@
       <div class="panel">
         <div class="cards">
           <div class="card">
-            <div class="label">Total Spend</div>
+            <div class="label">Celkové čerpání</div>
             <div class="value" id="spendValue">$0.00</div>
           </div>
           <div class="card">
-            <div class="label">Max Budget</div>
+            <div class="label">Maximální rozpočet</div>
             <div class="value" id="budgetValue">$0.00</div>
           </div>
           <div class="card">
-            <div class="label">Remaining</div>
+            <div class="label">Zbývá</div>
             <div class="value" id="remainingValue">$0.00</div>
           </div>
           <div class="card">
-            <div class="label">Usage</div>
+            <div class="label">Využití</div>
             <div class="value" id="usagePercent">0%</div>
           </div>
         </div>
 
         <div class="progress-wrap">
           <div class="progress-label">
-            <span>Budget usage</span>
+            <span>Využití rozpočtu</span>
             <span id="progressText">0 / 0</span>
           </div>
           <div class="progress">
@@ -278,14 +278,14 @@
       </div>
 
       <div class="panel">
-        <h2 class="section-title">User Details</h2>
+        <h2 class="section-title">Detaily uživatele</h2>
         <div class="details-grid">
           <div class="detail-item">
             <div class="detail-key">User ID</div>
             <div class="detail-value" id="userId"></div>
           </div>
           <div class="detail-item">
-            <div class="detail-key">Email</div>
+            <div class="detail-key">E-mail</div>
             <div class="detail-value" id="userEmail"></div>
           </div>
           <div class="detail-item">
@@ -293,22 +293,22 @@
             <div class="detail-value" id="userRole"></div>
           </div>
           <div class="detail-item">
-            <div class="detail-key">Budget Duration</div>
+            <div class="detail-key">Délka rozpočtu</div>
             <div class="detail-value" id="budgetDuration"></div>
           </div>
           <div class="detail-item">
-            <div class="detail-key">Budget Reset At</div>
+            <div class="detail-key">Reset rozpočtu</div>
             <div class="detail-value" id="budgetResetAt"></div>
           </div>
           <div class="detail-item">
-            <div class="detail-key">Number of Keys</div>
+            <div class="detail-key">Počet klíčů</div>
             <div class="detail-value" id="keysCount"></div>
           </div>
         </div>
       </div>
 
       <div class="panel">
-        <h2 class="section-title">Key Spend</h2>
+        <h2 class="section-title">Čerpání podle klíčů</h2>
         <div class="details-grid" id="keysList"></div>
       </div>
     </div>
@@ -344,7 +344,7 @@
 
     function money(value) {
       const number = Number(value || 0);
-      return new Intl.NumberFormat("en-US", {
+      return new Intl.NumberFormat("cs-CZ", {
         style: "currency",
         currency: "USD",
         minimumFractionDigits: number !== 0 && Math.abs(number) < 0.01 ? 6 : 2,
@@ -396,18 +396,18 @@
       if (keys.length === 0) {
         const empty = document.createElement("div");
         empty.className = "detail-item";
-        empty.innerHTML = '<div class="detail-key">Keys</div><div class="detail-value">No keys found</div>';
+        empty.innerHTML = '<div class="detail-key">Klíče</div><div class="detail-value">Nebyly nalezeny žádné klíče</div>';
         els.keysList.appendChild(empty);
       } else {
         keys.forEach((key) => {
           const item = document.createElement("div");
           item.className = "detail-item";
           item.innerHTML = `
-            <div class="detail-key">${safeText(key.key_name || "Key")}</div>
+            <div class="detail-key">${safeText(key.key_name || "Klíč")}</div>
             <div class="detail-value">
-              <div><strong>Spend:</strong> ${money(key.spend || 0)}</div>
-              <div><strong>Last Active:</strong> ${formatDate(key.last_active)}</div>
-              <div><strong>Team Alias:</strong> ${safeText(key.team_alias)}</div>
+              <div><strong>Čerpání:</strong> ${money(key.spend || 0)}</div>
+              <div><strong>Naposledy aktivní:</strong> ${formatDate(key.last_active)}</div>
+              <div><strong>Alias týmu:</strong> ${safeText(key.team_alias)}</div>
             </div>
           `;
           els.keysList.appendChild(item);
@@ -421,13 +421,13 @@
       const token = tokenInput.value.trim();
 
       if (!token) {
-        setStatus("Please enter an API token.", "error");
+        setStatus("Zadejte prosím API token.", "error");
         dashboardEl.classList.add("hidden");
         return;
       }
 
       localStorage.setItem("budget_dashboard_token", token);
-      setStatus("Loading data...");
+      setStatus("Načítám data...");
       loadBtn.disabled = true;
 
       try {
@@ -445,7 +445,7 @@
         try {
           data = JSON.parse(text);
         } catch {
-          throw new Error("Server did not return valid JSON. Response: " + text.slice(0, 200));
+          throw new Error("Server nevrátil validní JSON. Odpověď: " + text.slice(0, 200));
         }
 
         if (!response.ok) {
@@ -453,13 +453,13 @@
         }
 
         render(data);
-        setStatus("Data loaded successfully.", "success");
+        setStatus("Data byla úspěšně načtena.", "success");
       } catch (error) {
         dashboardEl.classList.add("hidden");
         setStatus(
-          "Failed to load data. " +
+          "Nepodařilo se načíst data. " +
           error.message +
-          " If this page is opened locally, the API may also block browser requests due to CORS.",
+          " Pokud je tato stránka otevřená lokálně, API může blokovat požadavky z prohlížeče kvůli CORS.",
           "error"
         );
       } finally {
